@@ -44,3 +44,5 @@ pub fn main() !void {
         std.debug.print("Unknown command: {s}\n", .{command});
     }
 }
+
+// Just checking git connection
