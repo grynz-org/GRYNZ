@@ -1,24 +1,22 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 
-pub fn compileJava(file: []const u8, output_dir: ?[]const u8) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn compileJava(allocator: std.mem.Allocator, io: std.Io, file: []const u8, output_dir: ?[]const u8) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("javac");
-    try args.append(file);
+    try args.append(allocator, "javac");
+    try args.append(allocator, file);
 
     if (output_dir) |dir| {
-        try args.append("-d");
-        try args.append(dir);
+        try args.append(allocator, "-d");
+        try args.append(allocator, dir);
     }
 
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }
 
-pub fn runJava(file: []const u8, remaining_args: []const []const u8) !void {
-    const allocator = std.heap.page_allocator;
+pub fn runJava(allocator: std.mem.Allocator, io: std.Io, file: []const u8, remaining_args: []const []const u8) !void {
     var output_dir: ?[]const u8 = null;
 
     // Parse --out flag if present
@@ -26,23 +24,42 @@ pub fn runJava(file: []const u8, remaining_args: []const []const u8) !void {
         output_dir = remaining_args[1];
     }
 
-    // Extract class name without extension
-    const filename = std.fs.path.basename(file);
-    const dot_index = std.mem.lastIndexOfScalar(u8, filename, '.') orelse filename.len;
-    const class_name = filename[0..dot_index];
+    // Determine the fully qualified class name from the file path
+    // e.g. "langTestCodes/Main.class" -> "langTestCodes.Main"
+    const no_ext = if (std.mem.endsWith(u8, file, ".class")) file[0 .. file.len - 6] else file;
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var class_name_buf: std.ArrayList(u8) = .empty;
+    defer class_name_buf.deinit(allocator);
 
-    try args.append("java");
-
-    if (output_dir) |dir| {
-        try args.append("-cp");
-        try args.append(dir);
+    var i: usize = 0;
+    // Skip leading "./" or ".\"
+    if (no_ext.len >= 2 and no_ext[0] == '.' and (no_ext[1] == '/' or no_ext[1] == '\\')) {
+        i = 2;
     }
 
-    try args.append(class_name);
+    while (i < no_ext.len) : (i += 1) {
+        const c = no_ext[i];
+        if (c == '/' or c == '\\') {
+            try class_name_buf.append(allocator, '.');
+        } else {
+            try class_name_buf.append(allocator, c);
+        }
+    }
+
+    const class_name = class_name_buf.items;
+
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
+
+    try args.append(allocator, "java");
+
+    if (output_dir) |dir| {
+        try args.append(allocator, "-cp");
+        try args.append(allocator, dir);
+    }
+
+    try args.append(allocator, class_name);
 
     // Run Java process
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }

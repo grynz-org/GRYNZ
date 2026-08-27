@@ -1,8 +1,7 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 
-pub fn compileKotlin(file: []const u8, output_dir: ?[]const u8, remaining_args: []const []const u8) !void {
-    const allocator = std.heap.page_allocator;
+pub fn compileKotlin(allocator: std.mem.Allocator, io: std.Io, file: []const u8, output_dir: ?[]const u8, remaining_args: []const []const u8) !void {
     var include_runtime = false;
 
     // Filter out --out and its value from remaining_args
@@ -21,15 +20,15 @@ pub fn compileKotlin(file: []const u8, output_dir: ?[]const u8, remaining_args: 
         }
     }
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("kotlinc");
-    try args.append(file);
+    try args.append(allocator, "kotlinc");
+    try args.append(allocator, file);
 
     // Add -include-runtime flag if specified
     if (include_runtime) {
-        try args.append("-include-runtime");
+        try args.append(allocator, "-include-runtime");
     }
 
     // Determine the output JAR path
@@ -47,10 +46,10 @@ pub fn compileKotlin(file: []const u8, output_dir: ?[]const u8, remaining_args: 
 
     // Add the output argument
     const output_arg = try std.mem.concat(allocator, u8, &.{ "-d=", final_output_path });
-    try args.append(output_arg);
+    try args.append(allocator, output_arg);
 
     // Execute the command
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 
     // Free allocated memory
     if (output_dir != null) allocator.free(final_output_path);
@@ -58,15 +57,14 @@ pub fn compileKotlin(file: []const u8, output_dir: ?[]const u8, remaining_args: 
     allocator.free(output_arg);
 }
 
-pub fn runKotlin(jar_file: []const u8) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn runKotlin(allocator: std.mem.Allocator, io: std.Io, jar_file: []const u8) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("java");
-    try args.append("-jar");
-    try args.append(jar_file);
+    try args.append(allocator, "java");
+    try args.append(allocator, "-jar");
+    try args.append(allocator, jar_file);
 
     // Execute the command
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }

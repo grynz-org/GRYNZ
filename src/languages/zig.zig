@@ -2,14 +2,13 @@ const std = @import("std");
 const builtin = @import("builtin");
 const utils = @import("../utils.zig");
 
-pub fn compileZig(file: []const u8, output_dir: ?[]const u8) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn compileZig(allocator: std.mem.Allocator, io: std.Io, file: []const u8, output_dir: ?[]const u8) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append(file);
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, file);
 
     // Extract filename without extension
     const filename = std.fs.path.basename(file);
@@ -29,10 +28,10 @@ pub fn compileZig(file: []const u8, output_dir: ?[]const u8) !void {
     const final_output = try std.mem.concat(allocator, u8, &.{ final_output_path, ext });
 
     const emit_arg = try std.mem.concat(allocator, u8, &.{ "-femit-bin=", final_output });
-    try args.append(emit_arg);
+    try args.append(allocator, emit_arg);
 
     // Spawn the process
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 
     // Free allocated memory
     if (output_dir != null) allocator.free(final_output_path);
@@ -40,14 +39,13 @@ pub fn compileZig(file: []const u8, output_dir: ?[]const u8) !void {
     allocator.free(emit_arg);
 }
 
-pub fn runZig(file: []const u8) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn runZig(allocator: std.mem.Allocator, io: std.Io, file: []const u8) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("run");
-    try args.append(file);
+    try args.append(allocator, "zig");
+    try args.append(allocator, "run");
+    try args.append(allocator, file);
 
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }

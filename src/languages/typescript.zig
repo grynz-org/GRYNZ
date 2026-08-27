@@ -1,10 +1,9 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 
-pub fn compileTypescript(file: []const u8, output_dir: ?[]const u8, printWarning: bool) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn compileTypescript(allocator: std.mem.Allocator, io: std.Io, file: []const u8, output_dir: ?[]const u8, printWarning: bool) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
     // Print the warning only if `printWarning` is true
     if (printWarning) {
@@ -14,22 +13,20 @@ pub fn compileTypescript(file: []const u8, output_dir: ?[]const u8, printWarning
             , .{});
     }
     
-    try args.append("tsc");
-    try args.append(file);
+    try args.append(allocator, "tsc");
+    try args.append(allocator, file);
 
     // If output_dir is provided, add the --outDir flag
     if (output_dir) |dir| {
-        try args.append("--outDir");
-        try args.append(dir);
+        try args.append(allocator, "--outDir");
+        try args.append(allocator, dir);
     }
 
     // Spawn the process
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }
 
-pub fn runTypescript(file: []const u8, remaining_args: []const []const u8) !void {
-    const allocator = std.heap.page_allocator;
-
+pub fn runTypescript(allocator: std.mem.Allocator, io: std.Io, file: []const u8, remaining_args: []const []const u8) !void {
     // parse --out flag
     const output_dir = try utils.parseOutputDir(remaining_args);
 
@@ -46,10 +43,10 @@ pub fn runTypescript(file: []const u8, remaining_args: []const []const u8) !void
     }
 
     // Compile the TypeScript file
-    try compileTypescript(file, output_dir, false);
+    try compileTypescript(allocator, io, file, output_dir, false);
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
     const filename = std.fs.path.basename(file);
     const dot_index = std.mem.lastIndexOfScalar(u8, filename, '.') orelse filename.len;
@@ -70,9 +67,9 @@ pub fn runTypescript(file: []const u8, remaining_args: []const []const u8) !void
     defer allocator.free(js_path);
 
     // Run the compiled JavaScript file using Node
-    try args.append("node");
-    try args.append(js_path);
+    try args.append(allocator, "node");
+    try args.append(allocator, js_path);
 
     // Spawn the process
-    try utils.executeCommand(allocator, args.items);
+    try utils.executeCommand(allocator, io, args.items);
 }

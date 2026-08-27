@@ -1,14 +1,13 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 
-pub fn compileCpp(file: []const u8, output_dir: ?[]const u8) !void {
-    const allocator = std.heap.page_allocator;
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+pub fn compileCpp(allocator: std.mem.Allocator, io: std.Io, file: []const u8, output_dir: ?[]const u8) !void {
+    var args: std.ArrayList([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("g++");
-    try args.append(file);
-    try args.append("-o");
+    try args.append(allocator, "g++");
+    try args.append(allocator, file);
+    try args.append(allocator, "-o");
 
     // Construct output path
     const filename = std.fs.path.basename(file);
@@ -18,16 +17,16 @@ pub fn compileCpp(file: []const u8, output_dir: ?[]const u8) !void {
     if (output_dir) |dir| {
         // Join directory with filename
         const output = try std.fs.path.join(allocator, &.{ dir, name });
-        defer allocator.free(output); // Free after the process is done
-        try args.append(output);
+        defer allocator.free(output);
+        try args.append(allocator, output);
 
         // Spawn the process
-        try utils.executeCommand(allocator, args.items);
+        try utils.executeCommand(allocator, io, args.items);
     } else {
         // Just use filename in current directory
-        try args.append(name);
+        try args.append(allocator, name);
 
         // Spawn the process
-        try utils.executeCommand(allocator, args.items);
+        try utils.executeCommand(allocator, io, args.items);
     }
 }
