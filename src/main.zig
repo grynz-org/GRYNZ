@@ -2,15 +2,24 @@ const std = @import("std");
 const compiler = @import("compiler.zig");
 
 // Define the version as a comptime constant
-const version = "0.6.0-alpha";
+const version = "0.7.0-alpha";
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    // Collect command line arguments into a slice
+    var arg_list: std.ArrayList([]const u8) = .empty;
+    defer arg_list.deinit(allocator);
+
+    var args_iter = try std.process.Args.Iterator.initAllocator(init.minimal.args, allocator);
+    defer args_iter.deinit();
+
+    while (args_iter.next()) |arg| {
+        try arg_list.append(allocator, arg);
+    }
+
+    const args = arg_list.items;
 
     if (args.len < 2) {
         std.debug.print("Usage: grynz <command> [options]\n", .{});
@@ -37,12 +46,10 @@ pub fn main() !void {
     const file = args[2];
 
     if (std.mem.eql(u8, command, "build")) {
-        try compiler.handleBuild(file, args[3..]);
+        try compiler.handleBuild(allocator, io, file, args[3..]);
     } else if (std.mem.eql(u8, command, "run")) {
-        try compiler.handleRun(file, args[3..]);
+        try compiler.handleRun(allocator, io, file, args[3..]);
     } else {
         std.debug.print("Unknown command: {s}\n", .{command});
     }
 }
-
-// Just checking git connection
